@@ -216,7 +216,7 @@ def simple_get_valence(formula: str, now_valence: int = 0) -> dict[str,valence]:
 
 def get_valence(formula: str) -> dict[str,valence]:
     left_radical, radical_list = parse_radical(formula)
-    res = simple_get_valence(left_radical.formula, -left_radical.valence)
+    res = simple_get_valence(left_radical.formula, -left_radical.val)
     for i in radical_list:
         res[i.formula] = i
     return res
@@ -264,5 +264,5 @@ class compound:
 
 
 if __name__ == "__main__":
-    print(parse_radical(input()))
+    print(get_valence(input()))
     #print(simple_get_valence(parse_chemical_formula(input())))
