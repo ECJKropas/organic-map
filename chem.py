@@ -127,6 +127,20 @@ def parse_chemical_formula(formula):
     result = dict(stack[0])
     return result
 
+def generate_chemical_formula(atom_dict):
+    """
+    根据原子数量字典生成化学公式
+    :param atom_dict: 原子数量字典（如 {"H": 2, "O": 2}）
+    :return: 化学公式字符串（如 "H2O2"）
+    """
+    formula = ""
+    for atom, count in sorted(atom_dict.items()):
+        if count == 1:
+            formula += atom
+        else:
+            formula += f"{atom}{count}"
+    return formula
+
 
 def count_pattern_occurrences(target_str, pattern):
     """
@@ -178,7 +192,7 @@ def parse_radical(formula):
                 if atom_dict[j.formula] <= 0:
                     del atom_dict[j.formula]
                     
-    return atom_dict, involed_radicals
+    return valence(generate_chemical_formula(atom_dict), -now_valence, 1, molecule_type.RADICAL), involed_radicals
         
 
 
@@ -198,6 +212,13 @@ def simple_get_valence(formula: str, now_valence: int = 0) -> dict[str,valence]:
     last_atom = list(set(atom_dict.keys()) - visit)[0]
     # print(last_atom)
     res[last_atom] = valence(last_atom, -Fraction(now_valence) / Fraction(atom_dict[last_atom]), atom_dict[last_atom])
+    return res
+
+def get_valence(formula: str) -> dict[str,valence]:
+    left_radical, radical_list = parse_radical(formula)
+    res = simple_get_valence(left_radical.formula, -left_radical.valence)
+    for i in radical_list:
+        res[i.formula] = i
     return res
 
 def int_to_roman(num):
