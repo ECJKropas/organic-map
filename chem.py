@@ -2,7 +2,6 @@ import re
 from collections import defaultdict
 from fractions import Fraction
 from enum import Enum
-from typing import Any
 
 
 class molecule_type(Enum):
@@ -14,7 +13,9 @@ class molecule_type(Enum):
 
 
 class valence:
-    def __init__(self, formula, val: Fraction, cnt, type: molecule_type = molecule_type.ATOM):
+    def __init__(
+        self, formula, val: Fraction, cnt, type: molecule_type = molecule_type.ATOM
+    ):
         self.formula = formula
         self.val = val
         self.cnt = cnt
@@ -22,14 +23,17 @@ class valence:
 
     def __int__(self) -> int:
         return self.val
-    
+
     def __str__(self) -> str:
         if self.val.denominator == 1:
-            return f"{"-" if self.val<0 else ""}{int_to_roman(abs(int(self.val)))}"
+            return f"{'-' if self.val < 0 else ''}{int_to_roman(abs(int(self.val)))}"
         return str(self.val)
-    
+
     def __repr__(self) -> str:
         return f"valence({self.formula}({str(self)}) * {self.cnt})"
+
+    def __mul__(self, other: int) -> "valence":
+        return valence(self.formula, self.val, self.cnt * other, self.type)
 
 
 class radical:
@@ -94,6 +98,18 @@ radicals = {
     ),
 }
 
+H_like_atoms = {
+    "H": 1,
+    "Li": 1,
+    "Na": 1,
+    "K": 1,
+    "F": 1,
+    "Cl": 1,
+    "Br": 1,
+    "I": 1,
+    "Ca": 2,
+}
+
 
 def parse_chemical_formula(formula):
     """
@@ -126,6 +142,7 @@ def parse_chemical_formula(formula):
 
     result = dict(stack[0])
     return result
+
 
 def generate_chemical_formula(atom_dict):
     """
@@ -185,66 +202,89 @@ def parse_radical(formula):
         cur_cnt = count_pattern_occurrences(formula, i.formula)
         now_valence += cur_cnt * i.valence
         if cur_cnt:
-            involed_radicals.append(valence(i.formula, i.valence, cur_cnt, molecule_type.RADICAL))
+            involed_radicals.append(
+                valence(i.formula, i.valence, cur_cnt, molecule_type.RADICAL)
+            )
             for j in i.atom_valence:
                 atom_dict[j.formula] -= cur_cnt * j.cnt
-                print(j.formula, j.cnt*cur_cnt)
+                print(j.formula, j.cnt * cur_cnt)
                 if atom_dict[j.formula] <= 0:
                     del atom_dict[j.formula]
-                    
-    return valence(generate_chemical_formula(atom_dict), -now_valence, 1, molecule_type.RADICAL), involed_radicals
-        
+
+    return valence(
+        generate_chemical_formula(atom_dict), -now_valence, 1, molecule_type.RADICAL
+    ), involed_radicals
 
 
-def simple_get_valence(formula: str, now_valence: int = 0) -> dict[str,valence]:
+def simple_get_valence(formula: str, now_valence: int = 0) -> dict[str, valence]:
     atom_dict = parse_chemical_formula(formula)
     atom_cnt = len(atom_dict)
-    res = dict[str,valence]()
+    res = dict[str, valence]()
     visit = set()
     for i in preset_valence_order.keys():
         if atom_cnt == 1:
             break
         if i in atom_dict:
             res[i] = valence(i, Fraction(preset_valence_order[i]), atom_dict[i])
-            now_valence += atom_dict[i] * res[i]
+            now_valence += atom_dict[i] * res[i].val
             visit.add(i)
             atom_cnt -= 1
     last_atom = list(set(atom_dict.keys()) - visit)[0]
     # print(last_atom)
-    res[last_atom] = valence(last_atom, -Fraction(now_valence) / Fraction(atom_dict[last_atom]), atom_dict[last_atom])
+    res[last_atom] = valence(
+        last_atom,
+        -Fraction(now_valence) / Fraction(atom_dict[last_atom]),
+        atom_dict[last_atom],
+    )
     return res
 
-def get_valence(formula: str) -> dict[str,valence]:
+
+def get_valence(formula: str, keep_radical: bool = False) -> dict[str, valence]:
     left_radical, radical_list = parse_radical(formula)
     res = simple_get_valence(left_radical.formula, -left_radical.val)
-    for i in radical_list:
-        res[i.formula] = i
-    return res
+    if keep_radical:
+        for i in radical_list:
+            res[i.formula] = i
+        return res
+    else:
+        for i in radical_list:
+            cur_radical = radicals[i.formula]
+            for j in cur_radical.atom_valence:
+                if j.formula not in res:
+                    res[j.formula] = j * i.cnt
+                else:
+                    cur_atom_cnt: int = res[j.formula].cnt + j.cnt * i.cnt
+                    cur_atom_valence: Fraction = res[j.formula].cnt * res[j.formula].val + j.cnt * i.cnt * j.val
+                    res[j.formula] = valence(j.formula, cur_atom_valence / cur_atom_cnt, cur_atom_cnt, j.type)
+        return res
+
 
 def int_to_roman(num):
     """
     将整数转换为罗马数字
-    :param num: 整数（1-3999）
+    :param num: 整数（0-3999）
     :return: 罗马数字字符串
     """
+    if num == 0:
+        return "0"
     # 定义值到符号的映射（按从大到小排列）
     val_to_sym = [
-        (1000, 'M'),
-        (900, 'CM'),
-        (500, 'D'),
-        (400, 'CD'),
-        (100, 'C'),
-        (90, 'XC'),
-        (50, 'L'),
-        (40, 'XL'),
-        (10, 'X'),
-        (9, 'IX'),
-        (5, 'V'),
-        (4, 'IV'),
-        (1, 'I')
+        (1000, "M"),
+        (900, "CM"),
+        (500, "D"),
+        (400, "CD"),
+        (100, "C"),
+        (90, "XC"),
+        (50, "L"),
+        (40, "XL"),
+        (10, "X"),
+        (9, "IX"),
+        (5, "V"),
+        (4, "IV"),
+        (1, "I"),
     ]
-    
-    roman = ''
+
+    roman = ""
     for value, symbol in val_to_sym:
         # 当 num 大于等于当前值时，重复减去并添加符号
         while num >= value:
@@ -258,11 +298,33 @@ class compound:
         self.formula = formula
         self.atoms = parse_chemical_formula(formula)
         self.atom_cnt = len(self.atoms)
+        self.valence = get_valence(formula)
+    
+    def regen_formula(self):
+        return generate_chemical_formula(self.atoms)
+    
+    def unsaturation_degree(self) -> int:
+        C_cnt = 0
+        H_cnt = 0
+        for i in self.atoms.keys():
+            if i not in H_like_atoms and i != "C" and i != "O":
+                return -1
+            elif i == "O":
+                continue
+            elif i == "C":
+                C_cnt = self.atoms[i]
+            else:
+                H_cnt += self.atoms[i] * H_like_atoms[i]
+
+        return (C_cnt * 2 + 2 - H_cnt) // 2
 
     def __repr__(self) -> str:
         return self.formula
 
 
 if __name__ == "__main__":
-    print(get_valence(input()))
-    #print(simple_get_valence(parse_chemical_formula(input())))
+    # print(get_valence(input()))
+    # print(simple_get_valence(parse_chemical_formula(input())))
+    cp = compound("H2C=CHCH3")
+    print(cp.unsaturation_degree())
+    print(cp.valence)
