@@ -1,7 +1,8 @@
+# pyright: reportArgumentType=false
 import re
 from collections import defaultdict
-from fractions import Fraction
 from enum import Enum
+from fractions import Fraction
 
 
 class molecule_type(Enum):
@@ -22,7 +23,7 @@ class valence:
         self.type = type
 
     def __int__(self) -> int:
-        return self.val
+        return int(self.val)
 
     def __str__(self) -> str:
         if self.val.denominator == 1:
@@ -226,7 +227,7 @@ def simple_get_valence(formula: str, now_valence: int = 0) -> dict[str, valence]
             break
         if i in atom_dict:
             res[i] = valence(i, Fraction(preset_valence_order[i]), atom_dict[i])
-            now_valence += atom_dict[i] * res[i].val
+            now_valence += int(atom_dict[i] * res[i].val)
             visit.add(i)
             atom_cnt -= 1
     last_atom = list(set(atom_dict.keys()) - visit)[0]
@@ -254,8 +255,12 @@ def get_valence(formula: str, keep_radical: bool = False) -> dict[str, valence]:
                     res[j.formula] = j * i.cnt
                 else:
                     cur_atom_cnt: int = res[j.formula].cnt + j.cnt * i.cnt
-                    cur_atom_valence: Fraction = res[j.formula].cnt * res[j.formula].val + j.cnt * i.cnt * j.val
-                    res[j.formula] = valence(j.formula, cur_atom_valence / cur_atom_cnt, cur_atom_cnt, j.type)
+                    cur_atom_valence: Fraction = (
+                        res[j.formula].cnt * res[j.formula].val + j.cnt * i.cnt * j.val
+                    )
+                    res[j.formula] = valence(
+                        j.formula, cur_atom_valence / cur_atom_cnt, cur_atom_cnt, j.type
+                    )
         return res
 
 
@@ -299,10 +304,10 @@ class compound:
         self.atoms = parse_chemical_formula(formula)
         self.atom_cnt = len(self.atoms)
         self.valence = get_valence(formula)
-    
+
     def regen_formula(self):
         return generate_chemical_formula(self.atoms)
-    
+
     def unsaturation_degree(self) -> int:
         C_cnt = 0
         H_cnt = 0
